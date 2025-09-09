@@ -1,4 +1,4 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, Editor, MarkdownView, LinkCache, getLinkpath, parseLinktext, CachedMetadata, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 
 // Remember to rename these classes and interfaces!
 
@@ -63,7 +63,52 @@ export default class MyPlugin extends Plugin {
 					return true;
 				}
 			}
+		})
+		this.addCommand({
+			id: 'inline-link-under-cursor',
+			name: 'Inline link under cursor',
+			editorCallback: (editor: Editor, view: MarkdownView) => {
+				const file = view.file;
+				if (!file) return;
+				const metadata = this.app.metadataCache.getFileCache(file);
+				const cursor = editor.getCursor();
+				const link = metadata?.links?.find(l => {
+					const p = l.position;
+					return p.end.line == cursor.line
+						&& p.start.line == cursor.line
+						&& p.start.col <= cursor.ch
+						&& p.end.col >= cursor.ch;
+				});
+
+				console.log(view);
+				console.log(view.getViewData());
+				console.log(file);
+				console.log(metadata);
+				console.log(cursor);
+				console.log(link);
+
+				if (!link) return;
+
+				this.inlineLink(link, editor).then();
+			}
 		});
+
+		this.addCommand({
+			id: 'inline-all-links',
+			name: 'Inline all links',
+			editorCallback: (editor: Editor, view: MarkdownView) => {
+				const file = view.file;
+				if (!file) return;
+				const md = this.app.metadataCache.getFileCache(file);
+				const links = md?.links;
+
+				console.log(links);
+
+				links
+					?.sort((a, b) => b.position.start.offset - a.position.start.offset)
+					.forEach(l => this.inlineLink(l, editor).then());
+			}
+		})
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new SampleSettingTab(this.app, this));
@@ -76,6 +121,38 @@ export default class MyPlugin extends Plugin {
 
 		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+	}
+
+	async inlineLink(link: LinkCache, editor: Editor) {
+		console.log(link.link);
+		const path = parseLinktext(link.link).path;
+		console.log(path);
+		const file = this.app.vault.getFileByPath(path);
+		console.log(file);
+		if (!file) return;
+
+		const metadata = this.app.metadataCache.getFileCache(file);
+		if (!metadata) return;
+
+		const content = await this.app.vault.read(file);
+		console.log(content);
+
+		// const cb = "```";
+		const cb = "";
+		const opTag = `<inline-note note='${file.name}' title='${metadata.frontmatter?.title}'>`;
+		const edTag = `</inline-note>`;
+
+		editor.replaceRange(
+			`\n${opTag}\n${cb}${content}${cb}\n${edTag}\n`,
+			{
+				line: link.position.start.line,
+				ch: link.position.start.col
+			},
+			{
+				line: link.position.end.line,
+				ch: link.position.end.col
+			}
+		);
 	}
 
 	onunload() {
@@ -97,12 +174,12 @@ class SampleModal extends Modal {
 	}
 
 	onOpen() {
-		const {contentEl} = this;
+		const { contentEl } = this;
 		contentEl.setText('Woah!');
 	}
 
 	onClose() {
-		const {contentEl} = this;
+		const { contentEl } = this;
 		contentEl.empty();
 	}
 }
@@ -116,7 +193,7 @@ class SampleSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
