@@ -89,7 +89,7 @@ export default class MyPlugin extends Plugin {
 
 				if (!link) return;
 
-				this.inlineLink(link, editor).then();
+				this.inlineLink(link, file.path, editor).then();
 			}
 		});
 
@@ -106,9 +106,43 @@ export default class MyPlugin extends Plugin {
 
 				links
 					?.sort((a, b) => b.position.start.offset - a.position.start.offset)
-					.forEach(l => this.inlineLink(l, editor).then());
+					.forEach(l => this.inlineLink(l, file.path, editor).then());
 			}
-		})
+		});
+
+		// does not work
+		this.addCommand({
+			id: 'inline-all-links-rec',
+			name: 'Inline all links recursively',
+			editorCallback: async (editor: Editor, view: MarkdownView) => {
+				const inlined: string[] = [];
+				const file = () => view.file;
+				const path = file()?.path;
+				if (!path) return;
+				const links = () => {
+					const f = file();
+					if (!f) return null;
+					const md = this.app.metadataCache.getFileCache(f);
+					return md?.links;
+				};
+				let uninlined = links();
+				console.log("uninlined", uninlined);
+				let i = 0;
+				while (uninlined?.length && i < 3) {
+					i++;
+					const sortedLinks = uninlined.sort((a, b) => b.position.start.offset - a.position.start.offset);
+					for (const l of sortedLinks) {
+						console.log("link", l.link);
+						await this.inlineLink(l, path, editor, true);
+						inlined.push(l.link);
+						console.log("inlined", inlined);
+					}
+					console.log("links", links());
+					uninlined = links()?.filter(l => !inlined.includes(l.link));
+					console.log("uninlined", uninlined);
+				}
+			}
+		});
 
 		// This adds a settings tab so the user can configure various aspects of the plugin
 		this.addSettingTab(new SampleSettingTab(this.app, this));
@@ -123,11 +157,11 @@ export default class MyPlugin extends Plugin {
 		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
 	}
 
-	async inlineLink(link: LinkCache, editor: Editor) {
+	async inlineLink(link: LinkCache, sourcePath: string, editor: Editor, escapeTags: boolean = false) {
 		console.log(link.link);
-		const path = parseLinktext(link.link).path;
+		const path = getLinkpath(link.link);
 		console.log(path);
-		const file = this.app.vault.getFileByPath(path);
+		const file = this.app.metadataCache.getFirstLinkpathDest(path, sourcePath);
 		console.log(file);
 		if (!file) return;
 
@@ -139,11 +173,12 @@ export default class MyPlugin extends Plugin {
 
 		// const cb = "```";
 		const cb = "";
-		const opTag = `<inline-note note='${file.name}' title='${metadata.frontmatter?.title}'>`;
+		const opTag = `<inline-note note='${file.name}' title='${metadata.frontmatter?.title}' path='${path}'>`;
 		const edTag = `</inline-note>`;
+		const esc = escapeTags ? '\\' : '';
 
 		editor.replaceRange(
-			`\n${opTag}\n${cb}${content}${cb}\n${edTag}\n`,
+			`\n${esc}${opTag}\n${cb}${content}${cb}\n${esc}${edTag}\n`,
 			{
 				line: link.position.start.line,
 				ch: link.position.start.col
