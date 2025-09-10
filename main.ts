@@ -128,10 +128,8 @@ export default class MyPlugin extends Plugin {
 				links
 					?.filter(l => {
 						const lPos = l.position;
-						return lPos.start.line >= from.line
-							&& lPos.start.col >= from.ch
-							&& lPos.end.line <= to.line
-							&& lPos.end.col <= to.ch
+						return (lPos.start.line > from.line || (lPos.start.line == to.line && lPos.start.col >= from.ch))
+							&& (lPos.end.line < to.line || (lPos.end.line == to.line && lPos.end.col <= to.ch))
 					})
 					?.sort((a, b) => b.position.start.offset - a.position.start.offset)
 					.forEach(l => this.inlineLink(l, file.path, editor).then());
@@ -206,7 +204,7 @@ export default class MyPlugin extends Plugin {
 		const esc = escapeTags ? '\\' : '';
 
 		editor.replaceRange(
-			`\n% ${link.link}\n${esc}${opTag}\n${cb}${content}${cb}\n${esc}${edTag}\n%\n`,
+			`\n% ${link.original}\n${esc}${opTag}\n${cb}${content}${cb}\n${esc}${edTag}\n%\n`,
 			{
 				line: link.position.start.line,
 				ch: link.position.start.col
