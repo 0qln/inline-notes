@@ -176,9 +176,10 @@ export default class MyPlugin extends Plugin {
 		const opTag = `<inline-note note='${file.name}' title='${metadata.frontmatter?.title}' path='${path}'>`;
 		const edTag = `</inline-note>`;
 		const esc = escapeTags ? '\\' : '';
+		const sur = "%";
 
 		editor.replaceRange(
-			`\n${esc}${opTag}\n${cb}${content}${cb}\n${esc}${edTag}\n`,
+			`\n${sur}\n${esc}${opTag}\n${cb}${content}${cb}\n${esc}${edTag}\n${sur}\n`,
 			{
 				line: link.position.start.line,
 				ch: link.position.start.col
