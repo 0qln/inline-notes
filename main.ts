@@ -110,6 +110,34 @@ export default class MyPlugin extends Plugin {
 			}
 		});
 
+		this.addCommand({
+			id: 'inline-all-links-in-current-selection',
+			name: 'Inline all links in current selection',
+			editorCallback: (editor: Editor, view: MarkdownView) => {
+				const from = editor.getCursor('from');
+				const to = editor.getCursor('to');
+				const file = view.file;
+				if (!file) return;
+				const md = this.app.metadataCache.getFileCache(file);
+				const links = md?.links;
+
+				console.log(links);
+				console.log('from', from)
+				console.log('to', to)
+
+				links
+					?.filter(l => {
+						const lPos = l.position;
+						return lPos.start.line >= from.line
+							&& lPos.start.col >= from.ch
+							&& lPos.end.line <= to.line
+							&& lPos.end.col <= to.ch
+					})
+					?.sort((a, b) => b.position.start.offset - a.position.start.offset)
+					.forEach(l => this.inlineLink(l, file.path, editor).then());
+			}
+		});
+
 		// does not work
 		this.addCommand({
 			id: 'inline-all-links-rec',
